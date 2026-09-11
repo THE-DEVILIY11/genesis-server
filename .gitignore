@@ -1,0 +1,7 @@
+# secrets + local state — never push these
+config.json
+keys.json
+data/
+logs/
+*.log
+*.out

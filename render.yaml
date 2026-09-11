@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: genesis-c2
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: OP_SECRET
+        sync: false
