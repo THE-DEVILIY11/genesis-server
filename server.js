@@ -46,9 +46,16 @@ const config = loadJson(CONFIG_PATH, {
   logDir: path.join(ROOT, 'logs'),
 });
 
-// host env wins: render sets its own PORT; OP_SECRET keeps the secret out of the repo
+// host env wins: render sets its own PORT; OP_SECRET keeps the secret out of the repo.
+// Multi-admin: OP_SECRETS (comma-separated) accepts several operator identities —
+// each authenticates with its own secret and gets its own envelope key, so one
+// panel per operator key is safe while the primary OP_SECRET stays the crown key.
 if (process.env.PORT) config.port = parseInt(process.env.PORT, 10) || config.port;
 config.operatorSecret = process.env.OP_SECRET || config.operatorSecret;
+config.operatorSecrets = [
+  config.operatorSecret,
+  ...(process.env.OP_SECRETS || '').split(',').map(s => s.trim()).filter(Boolean),
+].filter((s, i, a) => s && a.indexOf(s) === i);
 // telegram relay can be enabled purely from env — no repo secrets needed
 if (process.env.TG_TOKEN) config.tg = Object.assign({}, config.tg, { token: process.env.TG_TOKEN });
 if (process.env.TG_ADMIN) config.tg = Object.assign({}, config.tg, { adminChat: process.env.TG_ADMIN });
@@ -77,9 +84,9 @@ function buildEnvelopeKey(buildId) {
     .digest();
 }
 
-const OP_ENVELOPE_KEY = crypto.createHash('sha256')
-  .update('genesis-op:' + config.operatorSecret)
-  .digest();
+function opEnvelopeKey(secret) {
+  return crypto.createHash('sha256').update('genesis-op:' + secret).digest();
+}
 
 // ---------------------------------------------------------------------------
 // crypto
@@ -216,7 +223,7 @@ class WsConn {
 
   send(obj) {
     if (this.closed) return;
-    const env = this.session.kind === 'op' ? seal(OP_ENVELOPE_KEY, obj) : seal(this.session.key, obj);
+    const env = this.session.kind === 'op' ? seal(this.opKey, obj) : seal(this.session.key, obj);
     this.sendFrame(OP_BIN, env);
   }
 
@@ -330,10 +337,19 @@ function route(payload, conn) {
       writePending(buildId, vid, []);
       conn.send({ t: 'welcome', vid, srv: Date.now(), pending, apk: (keys.builds[buildId] || {}).name || null });
     } else if (kind === 0x02) {
-      let msg;
-      try { msg = open(OP_ENVELOPE_KEY, payload.subarray(2)); } catch { return conn.close(1008, 'bad operator seal'); }
-      if (msg.o !== 'auth' || msg.token !== config.operatorSecret) return conn.close(1008, 'operator auth failed');
+      let msg = null, matched = null;
+      for (const secret of config.operatorSecrets) {
+        const key = opEnvelopeKey(secret);
+        try {
+          msg = open(key, payload.subarray(2));
+          matched = key;
+          break;
+        } catch {}
+      }
+      if (!msg || !matched || msg.o !== 'auth' || msg.token !== config.operatorSecret)
+        return conn.close(1008, 'operator auth failed');
       conn.session = { kind: 'op' };
+      conn.opKey = matched;
       operators.add(conn);
       conn.send({ t: 'ok', o: 'auth' });
     } else {
@@ -344,7 +360,7 @@ function route(payload, conn) {
 
   // session phase
   let msg;
-  try { msg = open(conn.session.kind === 'op' ? OP_ENVELOPE_KEY : conn.session.key, payload); }
+  try { msg = open(conn.session.kind === 'op' ? conn.opKey : conn.session.key, payload); }
   catch { return conn.close(1008, 'bad seal'); }
 
   if (conn.session.kind === 'client') return routeClient(conn, msg);
