@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: genesis-c2
+    name: realtime-sync-hub
     runtime: node
     plan: free
     buildCommand: ""

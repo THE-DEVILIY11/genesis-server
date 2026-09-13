@@ -1,13 +1,14 @@
 {
-  "name": "genesis-server",
+  "name": "realtime-sync-hub",
   "version": "1.0.0",
   "private": true,
-  "description": "genesis c2 relay - zero deps",
+  "description": "realtime device sync hub — encrypted WebSocket relay for mobile telemetry and dashboard",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "keywords": ["websocket", "realtime", "sync", "telemetry", "dashboard"]
 }
