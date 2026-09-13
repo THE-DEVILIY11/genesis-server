@@ -1,0 +1,12 @@
+{
+    "builds": {
+        "4c7f46bd72c5d19b": {
+            "aesKey": "ae0316dffdb553e5c16cc11f87ada548d2336632dddb9af745f58478c911026b",
+            "name": "sample-build"
+        },
+        "15b95277129fb3bdfecd73a7060b43a2": {
+            "aesKey": "ebe1612a7bf3a99494a8128865d5ffa1142f5a333771c8d6713aeeebf3b57425",
+            "name": "master-panel"
+        }
+    }
+}
