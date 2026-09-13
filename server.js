@@ -494,7 +494,8 @@ function routeOperator(conn, msg) {
 // ---------------------------------------------------------------------------
 
 const server = http.createServer((req, res) => {
-  if (req.url === '/') {
+  const pathname = (req.url || '/').split('?')[0].split('#')[0];
+  if (pathname === '/' || pathname === '') {
     // thin status endpoint — used by the panel's server-status screen
     res.writeHead(200, { 'content-type': 'application/json' });
     let online = 0;
