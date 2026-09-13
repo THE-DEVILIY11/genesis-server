@@ -1,0 +1,15 @@
+[build]
+  command = "npm install"
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  # free tier 10s timeout — WSS will drop after 10s, same as Vercel serverless
+  # for genesis C2 you need a persistent host (Zeabur/Glitch/Serv00), not serverless
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/server"
+  status = 200
+  force = false
