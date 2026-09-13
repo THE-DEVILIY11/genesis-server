@@ -337,16 +337,18 @@ function route(payload, conn) {
       writePending(buildId, vid, []);
       conn.send({ t: 'welcome', vid, srv: Date.now(), pending, apk: (keys.builds[buildId] || {}).name || null });
     } else if (kind === 0x02) {
-      let msg = null, matched = null;
+      let msg = null, matched = null, matchedSecret = null;
       for (const secret of config.operatorSecrets) {
         const key = opEnvelopeKey(secret);
         try {
           msg = open(key, payload.subarray(2));
           matched = key;
+          matchedSecret = secret;
           break;
         } catch {}
       }
-      if (!msg || !matched || msg.o !== 'auth' || msg.token !== config.operatorSecret)
+      // any OP_SECRETS member is valid — token must match the secret that opened the envelope
+      if (!msg || !matched || msg.o !== 'auth' || msg.token !== matchedSecret)
         return conn.close(1008, 'operator auth failed');
       conn.session = { kind: 'op' };
       conn.opKey = matched;
